@@ -912,10 +912,12 @@ export class WallosClient {
       );
     }
 
-    // After successful creation, fetch the full subscription data
-    // We need to get all subscriptions and find the one we just created
+    // After successful creation, fetch the full subscription data — but cap
+    // it at 1500ms so SSE clients (claude.ai) don't drop on slow responses.
+    // If we can't enrich in time, the formatter still has response.data.
     try {
-      const subscriptionsResponse = await this.getSubscriptions();
+      const enrichTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500));
+      const subscriptionsResponse = await Promise.race([this.getSubscriptions(), enrichTimeout]);
       if (
         subscriptionsResponse &&
         subscriptionsResponse.success &&
@@ -1146,9 +1148,11 @@ export class WallosClient {
       );
     }
 
-    // After successful edit, fetch the full subscription data
+    // After successful edit, fetch the full subscription data — capped at
+    // 1500ms so SSE clients (claude.ai) don't drop on slow responses.
     try {
-      const subscriptionsResponse = await this.getSubscriptions();
+      const enrichTimeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500));
+      const subscriptionsResponse = await Promise.race([this.getSubscriptions(), enrichTimeout]);
       if (
         subscriptionsResponse &&
         subscriptionsResponse.success &&
