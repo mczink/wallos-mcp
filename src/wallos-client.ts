@@ -389,7 +389,7 @@ export class WallosClient {
       params.append('name', name);
     }
 
-    const response = await this.client.get(`/endpoints/categories/category.php?${params}`);
+    const response = await this.client.post(`/endpoints/categories/category.php`, params, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
     if (!response || !response.data) {
       throw new Error('Invalid response from add category API');
     }
@@ -408,7 +408,7 @@ export class WallosClient {
       name: name,
     });
 
-    const response = await this.client.get(`/endpoints/categories/category.php?${params}`);
+    const response = await this.client.post(`/endpoints/categories/category.php`, params, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
     return response.data;
   }
 
@@ -427,7 +427,7 @@ export class WallosClient {
       categoryId: id.toString(),
     });
 
-    const response = await this.client.get(`/endpoints/categories/category.php?${params}`);
+    const response = await this.client.post(`/endpoints/categories/category.php`, params, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
     return response.data;
   }
 
@@ -469,7 +469,7 @@ export class WallosClient {
       name: name,
     });
 
-    const response = await this.client.get(`/endpoints/payments/add.php?${params}`);
+    const response = await this.client.post(`/endpoints/payments/add.php`, params, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
     return response.data;
   }
 
@@ -484,7 +484,7 @@ export class WallosClient {
       paymentMethodId: id.toString(),
     });
 
-    const response = await this.client.get(`/endpoints/payments/add.php?${params}`);
+    const response = await this.client.post(`/endpoints/payments/add.php`, params, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
     return response.data;
   }
 
@@ -539,7 +539,7 @@ export class WallosClient {
       params.append('symbol', defaultSymbols[code.toUpperCase()] || code);
     }
 
-    const response = await this.client.get(`/endpoints/currency/currency.php?${params}`);
+    const response = await this.client.post(`/endpoints/currency/currency.php`, params, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
     if (!response || !response.data) {
       throw new Error('Invalid response from add currency API');
     }
@@ -577,7 +577,7 @@ export class WallosClient {
       params.append('email', `${sanitizedName}@household.local`);
     }
 
-    const response = await this.client.get(`/endpoints/household/household.php?${params}`);
+    const response = await this.client.post(`/endpoints/household/household.php`, params, { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
     return response.data;
   }
 
