@@ -258,4 +258,93 @@ describe('WallosClient', () => {
       expect(result).toBe(false);
     });
   });
+
+  // Regression coverage for a real production bug (2026-07-15): the request
+  // interceptor merged `api_key` into `/api/` POST bodies via object spread
+  // (`{ ...config.data, api_key }`). That works for a plain JSON object, but
+  // URLSearchParams and FormData keep their entries in an internal slot, not
+  // as enumerable own properties — spreading either one silently produces
+  // `{}`. The merge would then replace the entire body with just
+  // `{ api_key }`, discarding every other field the caller had set. This
+  // was latent (no /api/ POST mutation existed yet) until editSubscription()
+  // was retargeted at api/subscriptions/set_subscriptions.php (Wallos v5
+  // removed the old /endpoints/subscription/edit.php). These tests invoke
+  // the real interceptor callback captured off the mocked axios instance —
+  // unlike the other test files in this suite, which mock
+  // `interceptors.request.use` as a no-op and therefore never execute this
+  // code path at all.
+  describe('Request interceptor — api_key injection for /api/ POST bodies', () => {
+    function capturedRequestInterceptor(): (config: {
+      url?: string;
+      method?: string;
+      data?: unknown;
+      params?: unknown;
+    }) => Promise<{ url?: string; method?: string; data?: unknown; params?: unknown }> {
+      const calls = mockAxiosInstance.interceptors.request.use.mock.calls;
+      return calls[calls.length - 1][0];
+    }
+
+    test('merges api_key into a URLSearchParams body without dropping other fields', async () => {
+      const interceptor = capturedRequestInterceptor();
+      const body = new URLSearchParams({ action: 'edit', id: '42', name: 'Renamed' });
+
+      const config = await interceptor({
+        url: '/api/subscriptions/set_subscriptions.php',
+        method: 'post',
+        data: body,
+      });
+
+      expect(config.data).toBeInstanceOf(URLSearchParams);
+      const resultBody = config.data as URLSearchParams;
+      expect(resultBody.get('action')).toBe('edit');
+      expect(resultBody.get('id')).toBe('42');
+      expect(resultBody.get('name')).toBe('Renamed');
+      expect(resultBody.get('api_key')).toBe(mockConfig.apiKey);
+    });
+
+    test('merges api_key into a FormData body without dropping other fields', async () => {
+      const interceptor = capturedRequestInterceptor();
+      const body = new FormData();
+      body.append('action', 'edit');
+      body.append('id', '7');
+
+      const config = await interceptor({
+        url: '/api/subscriptions/set_subscriptions.php',
+        method: 'post',
+        data: body,
+      });
+
+      expect(config.data).toBeInstanceOf(FormData);
+      const resultBody = config.data as FormData;
+      expect(resultBody.get('action')).toBe('edit');
+      expect(resultBody.get('id')).toBe('7');
+      expect(resultBody.get('api_key')).toBe(mockConfig.apiKey);
+    });
+
+    test('still merges api_key into params for /api/ GET requests', async () => {
+      const interceptor = capturedRequestInterceptor();
+
+      const config = await interceptor({
+        url: '/api/categories/get_categories.php',
+        method: 'get',
+        params: { foo: 'bar' },
+      });
+
+      expect(config.params).toEqual({ foo: 'bar', api_key: mockConfig.apiKey });
+    });
+
+    test('leaves non-/api/ requests untouched', async () => {
+      const interceptor = capturedRequestInterceptor();
+      const body = new URLSearchParams({ action: 'add' });
+
+      const config = await interceptor({
+        url: '/endpoints/categories/category.php',
+        method: 'post',
+        data: body,
+      });
+
+      expect(config.data).toBe(body);
+      expect((config.data as URLSearchParams).has('api_key')).toBe(false);
+    });
+  });
 });

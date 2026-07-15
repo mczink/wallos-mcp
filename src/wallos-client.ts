@@ -65,10 +65,23 @@ export class WallosClient {
       // Ensure we have an API key for API endpoints
       if (config.url && config.url.startsWith('/api/')) {
         await this.ensureApiKey();
+        const apiKey = this.apiKey as string;
         if (config.method === 'get') {
-          config.params = { ...config.params, api_key: this.apiKey };
+          config.params = { ...config.params, api_key: apiKey };
+        } else if (config.data instanceof URLSearchParams) {
+          // URLSearchParams (like FormData) stores its entries in an
+          // internal slot, not as enumerable own properties. Spreading it
+          // (`{...config.data}`) silently evaluates to `{}`, so the merge
+          // below would replace the whole request body with just
+          // `{ api_key }` and drop every other field — a Wallos v5 write
+          // endpoint (e.g. /api/subscriptions/set_subscriptions.php) would
+          // see a POST with nothing but the API key and reject or no-op it.
+          // Mutate the existing instance in place instead.
+          config.data.set('api_key', apiKey);
+        } else if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+          config.data.append('api_key', apiKey);
         } else {
-          config.data = { ...config.data, api_key: this.apiKey };
+          config.data = { ...config.data, api_key: apiKey };
         }
       }
 
@@ -1076,7 +1089,16 @@ export class WallosClient {
     }
 
     // Prepare form data for POST request - only include fields that are provided
+    //
+    // Wallos v5.0.0 removed /endpoints/subscription/edit.php in its endpoint
+    // consolidation (add.php was kept, edit.php was not — an asymmetric
+    // removal). Edits now go through the api-key-authenticated v2 write
+    // endpoint, api/subscriptions/set_subscriptions.php, which multiplexes
+    // add/edit/delete behind an `action` field and reads api_key from the
+    // POST body (not session/CSRF). Routing through the /api/ prefix makes
+    // the request interceptor above attach api_key automatically.
     const formData = new URLSearchParams();
+    formData.append('action', 'edit');
     formData.append('id', id.toString());
 
     if (data.name !== undefined) {
@@ -1127,7 +1149,7 @@ export class WallosClient {
       formData.append('notify_days_before', data.notify_days_before.toString());
     }
 
-    const response = await this.client.post('/endpoints/subscription/edit.php', formData, {
+    const response = await this.client.post('/api/subscriptions/set_subscriptions.php', formData, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
@@ -1143,8 +1165,13 @@ export class WallosClient {
       throw new Error(`Failed to edit subscription: ${response.data.message || 'Unknown error'}`);
     }
     if ('success' in response.data && response.data.success === false) {
+      // set_subscriptions.php (v5) reports failures via `message`/`title`,
+      // not `errorMessage` (that field belongs to the older response shape
+      // still used elsewhere, e.g. category/payment/currency mutations).
+      // Fall back to it so a real server error ("Invalid category ID", …)
+      // reaches the user instead of a generic "Unknown error".
       throw new Error(
-        `Failed to edit subscription: ${response.data.errorMessage || 'Unknown error'}`,
+        `Failed to edit subscription: ${response.data.errorMessage || response.data.message || 'Unknown error'}`,
       );
     }
 

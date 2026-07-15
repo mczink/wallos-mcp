@@ -188,7 +188,7 @@ describe('Subscription Editing', () => {
       const result = await client.editSubscription(1, editData);
 
       expect(mockAxiosInstance.post).toHaveBeenCalledWith(
-        '/endpoints/subscription/edit.php',
+        '/api/subscriptions/set_subscriptions.php',
         expect.any(URLSearchParams),
         expect.objectContaining({
           headers: {
@@ -199,6 +199,7 @@ describe('Subscription Editing', () => {
 
       const lastCall = mockAxiosInstance.post.mock.calls[mockAxiosInstance.post.mock.calls.length - 1];
       const formData = lastCall[1] as URLSearchParams;
+      expect(formData.get('action')).toBe('edit');
       expect(formData.get('id')).toBe('1');
       expect(formData.get('name')).toBe('Updated Netflix');
 
@@ -849,11 +850,12 @@ describe('Subscription Editing', () => {
 
       const lastCall = mockAxiosInstance.post.mock.calls[mockAxiosInstance.post.mock.calls.length - 1];
       const formData = lastCall[1] as URLSearchParams;
-      
-      // Should only have the ID, no other fields
+
+      // Should only have action + ID, no other fields
+      expect(formData.get('action')).toBe('edit');
       expect(formData.get('id')).toBe('17');
       const keys = Array.from(formData.keys());
-      expect(keys.length).toBe(1); // Only 'id' should be present
+      expect(keys.length).toBe(2); // Only 'action' and 'id' should be present
 
       expect((result as any).status).toBe('Success');
     });
